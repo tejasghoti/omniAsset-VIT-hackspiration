@@ -3,6 +3,7 @@ import { useWallet } from '@txnlab/use-wallet-react'
 import algosdk from 'algosdk'
 import ConnectWallet from './components/ConnectWallet'
 import UploadFile from './components/UploadFile'
+import Marketplace from './components/Marketplace'
 import { mintAsset } from './utils/mint'
 import './App.css'
 
@@ -31,7 +32,7 @@ function App() {
 
       // confirm transaction
       const result = await algosdk.waitForConfirmation(algodClient, txId, 4)
-      const assetIndex = result['asset-index']
+      const assetIndex = result['asset-index'] || result.assetIndex
       setAssetId(assetIndex ? assetIndex.toString() : 'Unknown')
       setStatus('Asset Minted Successfully!')
 
@@ -76,52 +77,61 @@ function App() {
               <div className="animate-pulse text-blue-400 font-mono">Waiting for connection...</div>
             </div>
           ) : (
-            <div className="mt-12 space-y-8">
-              {!assetId ? (
-                <>
-                  <UploadFile onUploadSuccess={handleUploadSuccess} />
-                  {loading && (
-                    <div className="mt-4 p-4 bg-blue-900/20 text-blue-300 rounded-lg max-w-md mx-auto border border-blue-800">
-                      <div className="flex items-center justify-center gap-2">
-                        <div className="animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full"></div>
-                        {status || 'Processing...'}
+            <div className="mt-12 space-y-16">
+              {/* Minting Section */}
+              <section>
+                {!assetId ? (
+                  <>
+                    <UploadFile onUploadSuccess={handleUploadSuccess} />
+                    {loading && (
+                      <div className="mt-4 p-4 bg-blue-900/20 text-blue-300 rounded-lg max-w-md mx-auto border border-blue-800">
+                        <div className="flex items-center justify-center gap-2">
+                          <div className="animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full"></div>
+                          {status || 'Processing...'}
+                        </div>
                       </div>
-                    </div>
-                  )}
-                  {status && !loading && !assetId && (
-                    <div className="mt-4 p-4 bg-red-900/20 text-red-300 rounded-lg max-w-md mx-auto border border-red-800">
-                      {status}
-                    </div>
-                  )}
-                </>
-              ) : (
-                <div className="p-8 bg-green-900/20 border border-green-700/50 rounded-2xl max-w-xl mx-auto shadow-2xl shadow-green-900/20">
-                  <div className="text-6xl mb-4">🎉</div>
-                  <h3 className="text-3xl font-bold text-green-400 mb-2">Asset Minted!</h3>
-                  <p className="text-gray-300 mb-6">Your AI Asset is now secured on Algorand.</p>
+                    )}
+                    {status && !loading && !assetId && (
+                      <div className="mt-4 p-4 bg-red-900/20 text-red-300 rounded-lg max-w-md mx-auto border border-red-800">
+                        {status}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="p-8 bg-green-900/20 border border-green-700/50 rounded-2xl max-w-xl mx-auto shadow-2xl shadow-green-900/20">
+                    <div className="text-6xl mb-4">🎉</div>
+                    <h3 className="text-3xl font-bold text-green-400 mb-2">Asset Minted!</h3>
+                    <p className="text-gray-300 mb-6">Your AI Asset is now secured on Algorand.</p>
 
-                  <div className="bg-gray-900/80 p-6 rounded-xl font-mono text-sm break-all border border-gray-700">
-                    <div className="text-gray-500 mb-1">Asset ID</div>
-                    <div className="text-yellow-400 font-bold text-xl">{assetId}</div>
-                    <div className="mt-4 text-gray-500 mb-1">Explore</div>
-                    <a
-                      href={`https://lora.algokit.io/testnet/asset/${assetId}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-400 hover:text-blue-300 underline"
+                    <div className="bg-gray-900/80 p-6 rounded-xl font-mono text-sm break-all border border-gray-700">
+                      <div className="text-gray-500 mb-1">Asset ID</div>
+                      <div className="text-yellow-400 font-bold text-xl">{assetId}</div>
+                      <div className="mt-4 text-gray-500 mb-1">Explore</div>
+                      <a
+                        href={`https://lora.algokit.io/testnet/asset/${assetId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-400 hover:text-blue-300 underline"
+                      >
+                        View on Lora
+                      </a>
+                    </div>
+
+                    <button
+                      onClick={() => { setAssetId(null); setStatus(null); }}
+                      className="mt-8 px-8 py-3 bg-gray-700 hover:bg-gray-600 rounded-xl transition-all font-bold text-white hover:scale-105 active:scale-95"
                     >
-                      View on Lora
-                    </a>
+                      Mint Another Asset
+                    </button>
                   </div>
+                )}
+              </section>
 
-                  <button
-                    onClick={() => { setAssetId(null); setStatus(null); }}
-                    className="mt-8 px-8 py-3 bg-gray-700 hover:bg-gray-600 rounded-xl transition-all font-bold text-white hover:scale-105 active:scale-95"
-                  >
-                    Mint Another Asset
-                  </button>
-                </div>
-              )}
+              {/* Marketplace Section */}
+              <section>
+                <div className="w-full h-px bg-gray-800 mb-16"></div>
+                <Marketplace />
+              </section>
             </div>
           )}
 
