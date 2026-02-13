@@ -1,1 +1,50 @@
 @import "tailwindcss";
+
+@theme {
+    --color-neon-blue: #00f0ff;
+    --color-neon-green: #0aff00;
+    --color-neon-purple: #bd00ff;
+    --color-glass-bg: rgba(255, 255, 255, 0.05);
+    --color-glass-border: rgba(255, 255, 255, 0.1);
+    --font-display: 'Inter', sans-serif;
+}
+
+@layer base {
+    body {
+        @apply bg-gray-950 text-white font-display overflow-x-hidden;
+        background-image:
+            linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+            linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+        background-size: 40px 40px;
+        background-position: center;
+    }
+}
+
+@utility glass {
+    @apply bg-glass-bg backdrop-blur-xl border border-glass-border shadow-lg relative overflow-hidden;
+}
+
+@utility neon-text {
+    @apply bg-gradient-to-r from-neon-blue to-neon-purple bg-clip-text text-transparent drop-shadow-[0_0_10px_rgba(0, 240, 255, 0.5)];
+}
+
+@utility neon-border {
+    @apply border border-neon-blue/50 shadow-[0_0_15px_rgba(0, 240, 255, 0.3)];
+}
+
+/* Animations */
+@keyframes float {
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-10px);
+    }
+}
+
+@utility animate-float {
+    animation: float 6s ease-in-out infinite;
+}

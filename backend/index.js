@@ -4,7 +4,7 @@ const multer = require('multer');
 const pinataSDK = require('@pinata/sdk');
 const fs = require('fs');
 const path = require('path');
-require('dotenv').config();
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') }); // Load .env from root
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -17,7 +17,19 @@ app.use(express.json());
 const upload = multer({ dest: 'uploads/' });
 
 // Initialize Pinata
-const pinata = new pinataSDK(process.env.PINATA_API_KEY, process.env.PINATA_SECRET_KEY);
+let pinata;
+if (process.env.PINATA_JWT) {
+    pinata = new pinataSDK({ pinataJWTKey: process.env.PINATA_JWT });
+} else {
+    pinata = new pinataSDK(process.env.PINATA_API_KEY, process.env.PINATA_SECRET_API_KEY);
+}
+
+// Test Pinata connection
+pinata.testAuthentication().then((result) => {
+    console.log('Pinata connected:', result);
+}).catch((err) => {
+    console.error('Pinata connection failed:', err);
+});
 
 // Routes
 app.get('/', (req, res) => {
@@ -35,23 +47,14 @@ app.post('/upload', upload.single('file'), async (req, res) => {
     const { name, description, ...properties } = req.body;
 
     try {
-        // 1. AI Fingerprinting & Quality Check (Mock)
-        // In a real app, this would hash the file and check a DB for duplicates.
-        const qualityScore = Math.floor(Math.random() * (100 - 80) + 80); // Random score between 80-100
-        const isDuplicate = false; // Mock duplicate check
+        console.log(`Processing upload: ${fileName}`);
 
-        if (isDuplicate) {
-            fs.unlinkSync(filePath);
-            return res.status(409).json({ error: 'Duplicate file detected' });
-        }
-
-        // 2. Upload File to IPFS
+        // 1. Upload File to IPFS
         const readableStreamForFile = fs.createReadStream(filePath);
         const options = {
             pinataMetadata: {
                 name: `OmniAsset_${fileName}`,
                 keyvalues: {
-                    qualityScore: qualityScore.toString(),
                     aiValidated: "true"
                 }
             },
@@ -60,40 +63,45 @@ app.post('/upload', upload.single('file'), async (req, res) => {
         const fileResult = await pinata.pinFileToIPFS(readableStreamForFile, options);
         const fileCid = fileResult.IpfsHash;
 
-        // 3. Create ARC-69 Metadata
+        // 2. Create Metadata (ARC-3 / ARC-69 compatible JSON)
         const metadata = {
-            standard: "arc69",
+            name: name || fileName,
             description: description || "No description provided",
+            image: `ipfs://${fileCid}`,
             external_url: `ipfs://${fileCid}`,
-            mime_type: req.file.mimetype,
             properties: {
                 file_name: fileName,
                 file_size: req.file.size,
-                quality_score: qualityScore,
                 ai_validated: true,
                 ...properties
             }
         };
 
-        // 3. Upload Metadata to IPFS (Optional but good for full decentralization, 
-        //    though ARC-69 usually puts metadata in the Asset Config Note. 
-        //    However, for large metadata or "ARC-3" style fallback, pinning JSON is good.)
-        //    For this "Steel Thread", we will return the CID and the Metadata JSON 
-        //    so the Frontend can put it into the Note field (ARC-69 style).
+        // 3. Pin Metadata to IPFS
+        // This gives us a single CID for the asset URL
+        const metadataResult = await pinata.pinJSONToIPFS(metadata, {
+            pinataMetadata: {
+                name: `OmniAsset_Metadata_${fileName}`
+            }
+        });
+        const metadataCid = metadataResult.IpfsHash;
 
         // Clean up temp file
         fs.unlinkSync(filePath);
 
-        // Return CID and Metadata for the frontend to mint
+        console.log(`Uploaded. File CID: ${fileCid}, Metadata CID: ${metadataCid}`);
+
+        // Return CIDs
         res.json({
-            cid: fileCid,
+            fileCid: fileCid,
+            metadataCid: metadataCid,
             metadata: metadata,
-            ipfsGatewayUrl: `https://gateway.pinata.cloud/ipfs/${fileCid}`
+            assetUrl: `ipfs://${metadataCid}`,
+            ipfsGatewayUrl: `https://gateway.pinata.cloud/ipfs/${metadataCid}`
         });
 
     } catch (error) {
         console.error('Upload Error:', error);
-        // Clean up temp file if exists
         if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
         res.status(500).json({ error: 'Failed to upload to IPFS', details: error.message });
     }

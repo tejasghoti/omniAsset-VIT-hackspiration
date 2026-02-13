@@ -1,72 +1,66 @@
-# 🌐 OmniAsset: The AI Model & Dataset Marketplace
-> _"Amazon meets Nasdaq for the AI Era, built on Algorand."_
+# 🌌 Antigravity: The Ultimate Web3 AI Marketplace
 
-OmniAsset is a decentralized marketplace that allows AI researchers and developers to securely monetize their datasets and models. Leveraging Algorand's speed and atomic transfers, we bridge the gap between AI creation and fair compensation.
-
-![OmniAsset Banner](https://placehold.co/1200x400/101827/3b82f6?text=OmniAsset+Marketplace)
+**Antigravity** is a "Web3 Sexy" decentralized application (dApp) built on **Algorand**, designed for trading AI models and datasets. It features a stunning glassmorphism UI, AI-driven price oracles, and secure atomic swaps.
 
 ## 🚀 Key Features
 
-- **🔗 Wallet Connect**: Seamless login with **Pera**, **Defly**, or **Exodus** (Testnet).
-- **📂 IPFS Integration**: Decentralized storage for large datasets/models via **Pinata**.
-- **🧠 AI Verification (Mock)**: Automated quality checks and fingerprinting to prevent duplicates (Mocked for MVP).
-- **💎 Instant Minting**: One-click minting of assets as **ARC-69** Algorand Standard Assets (ASAs).
-- **⚡ Atomic Swaps**: Trustless, P2P purchasing. Buyer sends ALGO, Seller sends Asset—simultaneously. No middlemen.
+### 1. 🧠 AI Integration
+-   **AI Price Oracle**: Automatically suggests fair market value for uploaded assets based on data metrics (Size, Type).
+-   **Recommendations**: "For You" section in the marketplace highlighting assets that match user behavior (Mocked).
+-   **Data Metrics**: Interactive charts (Radar/Bar) visualizing dataset integrity and distribution.
 
-## 🛠️ Tech Stack
+### 2. 💎 Web3 Sexy UI
+-   **Glassmorphism**: Sleek, translucent cards with neon accents using Tailwind CSS v4.
+-   **Animations**: Smooth transitions powered by `framer-motion`.
+-   **Responsive**: Fluid layout optimized for 4K and mobile.
 
-- **Frontend**: React, Vite, Tailwind CSS, `@txnlab/use-wallet`
-- **Backend**: Node.js, Express, Multer
-- **Blockchain**: Algorand (Testnet), `algosdk`
-- **Storage**: IPFS (Pinata SDK)
+### 3. ⛓️ Blockchain (Algorand)
+-   **Smart Contracts**: Located in `/blockchain/contracts/`.
+    -   Written in **Puya** (Python).
+    -   Implements **Atomic Transfers** for trustless P2P exchange.
+-   **ASA Minting**: One-click minting of assets with IPFS-pinned metadata.
+-   **Wallet Connect**: Support for Pera, Defly, and **MetaMask Snaps**.
 
-## 📦 Installation & Run Guide
+## 📂 Project Structure
 
-### Prerequisites
-- Node.js (v18+)
-- An Algorand Wallet (Pera/Defly) connected to **Testnet**.
-- [Pinata](https://www.pinata.cloud/) API Keys (Free Tier).
+```
+.
+├── blockchain/
+│   └── contracts/       # Smart Contract Logic (Puya) & Artifacts
+├── backend/             # Node.js Server (IPFS / API)
+├── frontend/            # React + Vite + Tailwind v4 Application
+└── README.md
+```
 
-### 1. Backend Setup (Terminal 1)
-Handles file uploads and IPFS pinning.
+## 🛠️ Setup & Run
 
+### 1. Smart Contracts
+Deploy the marketplace contract to TestNet.
+```bash
+cd blockchain/contracts
+# Ensure venv is active
+python deploy.py
+```
+*Copy the App ID output.*
+
+### 2. Backend
+Start the IPFS handler.
 ```bash
 cd backend
 npm install
-```
-
-**Configuration**:
-Create a `.env` file in the `backend` folder:
-```
-PINATA_API_KEY=your_key_here
-PINATA_SECRET_KEY=your_secret_here
-PORT=3001
-```
-
-**Run**:
-```bash
 node index.js
 ```
 
-### 2. Frontend Setup (Terminal 2)
-Launches the Marketplace UI.
-
+### 3. Frontend
+Run the sleek Web3 interface.
 ```bash
 cd frontend
+# Install new dependencies (framer-motion, recharts)
 npm install
+# Set App ID in .env
+# VITE_APP_ID=...
 npm run dev
 ```
-Open [http://localhost:5173](http://localhost:5173) in your browser.
 
-## 🎮 How to Demo
-
-1.  **Connect**: Click "Connect Wallet" top right.
-2.  **Upload**: Choose a file (e.g., a dataset sample). Watch it upload to IPFS.
-3.  **Mint**: Approve the transaction to mint your "AI Asset" on Algorand.
-4.  **Buy**: Scroll to the **Marketplace** section. Click "Buy Now" to simulate a buyer purchasing the asset via Atomic Transfer.
-
-## 📜 Smart Contract Logic (Future Work)
-Currently, the atomic swap is constructed on the client-side for demonstration. Future versions will implement a Smart Contract (Application) to handle escrow and automated royalties.
-
----
-*Built with ❤️ for the VIT Hackathon.*
+## 📜 License
+MIT

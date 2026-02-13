@@ -1,62 +1,189 @@
 import algosdk from 'algosdk';
+import { signSnapTxns } from './snap';
+import { Buffer } from 'buffer';
+
+if (typeof window !== 'undefined' && !window.Buffer) {
+    window.Buffer = Buffer;
+}
+
+// ABI Method Definitions
+const ABI = {
+    list_asset: new algosdk.ABIMethod({
+        name: 'list_asset',
+        args: [
+            { type: 'asset', name: 'asset' },
+            { type: 'uint64', name: 'price' },
+            { type: 'account', name: 'creator' },
+            { type: 'uint64', name: 'royalty' },
+            { type: 'axfer', name: 'axfer' },
+            { type: 'txn', name: 'mbr_pay' }
+        ],
+        returns: { type: 'void' }
+    }),
+    buy_asset: new algosdk.ABIMethod({
+        name: 'buy_asset',
+        args: [
+            { type: 'asset', name: 'asset' },
+            { type: 'txn', name: 'payment' }
+        ],
+        returns: { type: 'void' }
+    }),
+    cancel_listing: new algosdk.ABIMethod({
+        name: 'cancel_listing',
+        args: [
+            { type: 'asset', name: 'asset' }
+        ],
+        returns: { type: 'void' }
+    })
+};
+
+// Helper: Custom Signer for Snap / WalletConnect
+const createCustomSigner = (activeAddr: string, snapSender?: string | null, standardSigner?: any) => {
+    return async (unsignedTxns: algosdk.Transaction[]) => {
+        if (snapSender && activeAddr === snapSender) {
+            // Sign with Snap
+            const txnsB64 = unsignedTxns.map(t => Buffer.from(t.toByte()).toString('base64'));
+            const signed64 = await signSnapTxns(txnsB64);
+            if (!signed64) throw new Error("Snap signing failed");
+            // @ts-ignore
+            return signed64.map(s => new Uint8Array(Buffer.from(s, 'base64')));
+        } else {
+            // Standard Wallet Signer
+            return standardSigner(unsignedTxns);
+        }
+    };
+};
 
 /**
- * Constructs an Atomic Transfer Group:
- * 1. Buyer sends ALGO to Seller.
- * 2. Seller sends Asset to Buyer.
+ * List an Asset on the Marketplace
  */
-export async function createAtomicSwapGroup(
-    algodClient: algosdk.Algodv2,
-    buyerAddr: string,
-    sellerAddr: string,
+export async function listAsset(
+    client: algosdk.Algodv2,
+    sender: string,
+    appId: number,
     assetId: number,
-    priceMicroAlgo: number
+    price: number,
+    creatorAddr: string,
+    royaltyBps: number,
+    signer: any,
+    snapSender?: string | null
 ) {
-    const suggestedParams = await algodClient.getTransactionParams().do();
+    const params = await client.getTransactionParams().do();
+    const appAddr = algosdk.getApplicationAddress(appId);
+    const customSigner = createCustomSigner(sender, snapSender, signer);
 
-    // Transaction 1: Payment (Buyer -> Seller)
-    const payTxn = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
-        from: buyerAddr,
-        to: sellerAddr,
-        amount: priceMicroAlgo,
-        suggestedParams,
-    });
+    const atc = new algosdk.AtomicTransactionComposer();
 
-    // Transaction 2: Asset Transfer (Seller -> Buyer)
-    const axferTxn = algosdk.makeAssetTransferTxnWithSuggestedParamsFromObject({
-        from: sellerAddr,
-        to: buyerAddr,
+    // 1. Asset Transfer (Deposit to Contract)
+    const axfer = algosdk.makeAssetTransferTxnWithSuggestedParamsFromObject({
+        sender,
+        receiver: appAddr,
         assetIndex: assetId,
         amount: 1,
-        suggestedParams,
+        suggestedParams: params
     });
 
-    // Group the transactions
-    const txns = [payTxn, axferTxn];
-    return algosdk.assignGroupID(txns);
+    // 2. MBR Payment (Cover storage cost)
+    // 0.1 (OptIn) + 0.0025 (Base) + 0.0004 * (8 + 80) = ~0.1377 ALGO
+    // Let's send 0.2 ALGO to be safe, contract rejects excess? 
+    // No, logic checks `mbr_pay.amount >= required`. 
+    // Better to calculate exactly or send safe amount.
+    const mbrAmount = 200_000; // 0.2 ALGO
+    const mbrPay = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
+        sender,
+        receiver: appAddr,
+        amount: mbrAmount,
+        suggestedParams: params
+    });
+
+    atc.addMethodCall({
+        appID: appId,
+        method: ABI.list_asset,
+        methodArgs: [
+            assetId,
+            price,
+            creatorAddr,
+            royaltyBps,
+            { txn: axfer, signer: customSigner },
+            { txn: mbrPay, signer: customSigner }
+        ],
+        sender,
+        suggestedParams: params,
+        signer: customSigner,
+        // methodArgs 'asset' type handles foreignAssets automatically
+    });
+
+    const result = await atc.execute(client, 4);
+    return result.txIDs[0];
 }
 
 /**
- * Helper to Opt-In to an Asset (Required for Buyer before receiving)
+ * Buy an Asset
  */
-export async function optInToAsset(
-    algodClient: algosdk.Algodv2,
-    account: string,
+export async function buyAssetAtomic(
+    client: algosdk.Algodv2,
+    buyerAddr: string,
     assetId: number,
-    transactionSigner: (txnGroup: algosdk.Transaction[], indexesToSign: number[]) => Promise<Uint8Array[]>
+    price: number,
+    appId: number,
+    signer: any,
+    snapSender?: string | null
 ) {
-    const suggestedParams = await algodClient.getTransactionParams().do();
+    const params = await client.getTransactionParams().do();
+    const appAddr = algosdk.getApplicationAddress(appId);
+    const customSigner = createCustomSigner(buyerAddr, snapSender, signer);
 
-    // Opt-in is a 0 amount transfer to self
-    const optInTxn = algosdk.makeAssetTransferTxnWithSuggestedParamsFromObject({
-        from: account,
-        to: account,
-        assetIndex: assetId,
-        amount: 0,
-        suggestedParams,
+    const atc = new algosdk.AtomicTransactionComposer();
+
+    // Payment to Contract
+    const payTxn = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
+        sender: buyerAddr,
+        receiver: appAddr,
+        amount: price,
+        suggestedParams: params
     });
 
-    const signed = await transactionSigner([optInTxn], [0]);
-    const response = await algodClient.sendRawTransaction(signed).do();
-    return response.txId;
+    atc.addMethodCall({
+        appID: appId,
+        method: ABI.buy_asset,
+        methodArgs: [
+            assetId,
+            { txn: payTxn, signer: customSigner }
+        ],
+        sender: buyerAddr,
+        suggestedParams: params,
+        signer: customSigner
+    });
+
+    const result = await atc.execute(client, 4);
+    return result.txIDs[0];
+}
+
+/**
+ * Cancel a Listing
+ */
+export async function cancelListing(
+    client: algosdk.Algodv2,
+    sender: string,
+    appId: number,
+    assetId: number,
+    signer: any,
+    snapSender?: string | null
+) {
+    const params = await client.getTransactionParams().do();
+    const customSigner = createCustomSigner(sender, snapSender, signer);
+
+    const atc = new algosdk.AtomicTransactionComposer();
+
+    atc.addMethodCall({
+        appID: appId,
+        method: ABI.cancel_listing,
+        methodArgs: [assetId],
+        sender,
+        suggestedParams: params,
+        signer: customSigner
+    });
+
+    const result = await atc.execute(client, 4);
+    return result.txIDs[0];
 }
